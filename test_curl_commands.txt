@@ -1,0 +1,102 @@
+# english_ai_1.mp3 (Expected: AI)
+curl -X POST https://gaurav00107-ai-voice-detection.hf.space/api/v1/voice/detect \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: sk_hackathon_voice_detect_2024" \
+  -d '{"audioBase64": "//OExAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA...TRUNCATED", "language": "english"}' 
+
+# english_ai_2.mp3 (Expected: AI)
+curl -X POST https://gaurav00107-ai-voice-detection.hf.space/api/v1/voice/detect \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: sk_hackathon_voice_detect_2024" \
+  -d '{"audioBase64": "//OExAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA...TRUNCATED", "language": "english"}' 
+
+# english_ai_3.mp3 (Expected: AI)
+curl -X POST https://gaurav00107-ai-voice-detection.hf.space/api/v1/voice/detect \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: sk_hackathon_voice_detect_2024" \
+  -d '{"audioBase64": "//OExAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA...TRUNCATED", "language": "english"}' 
+
+# hindi_ai_1.mp3 (Expected: AI)
+curl -X POST https://gaurav00107-ai-voice-detection.hf.space/api/v1/voice/detect \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: sk_hackathon_voice_detect_2024" \
+  -d '{"audioBase64": "//OExAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA...TRUNCATED", "language": "hindi"}' 
+
+# hindi_ai_2.mp3 (Expected: AI)
+curl -X POST https://gaurav00107-ai-voice-detection.hf.space/api/v1/voice/detect \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: sk_hackathon_voice_detect_2024" \
+  -d '{"audioBase64": "//OExAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA...TRUNCATED", "language": "hindi"}' 
+
+# hindi_ai_3.mp3 (Expected: AI)
+curl -X POST https://gaurav00107-ai-voice-detection.hf.space/api/v1/voice/detect \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: sk_hackathon_voice_detect_2024" \
+  -d '{"audioBase64": "//OExAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA...TRUNCATED", "language": "hindi"}' 
+
+# malayalam_ai_1.mp3 (Expected: AI)
+curl -X POST https://gaurav00107-ai-voice-detection.hf.space/api/v1/voice/detect \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: sk_hackathon_voice_detect_2024" \
+  -d '{"audioBase64": "//OExAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA...TRUNCATED", "language": "malayalam"}' 
+
+# malayalam_ai_2.mp3 (Expected: AI)
+curl -X POST https://gaurav00107-ai-voice-detection.hf.space/api/v1/voice/detect \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: sk_hackathon_voice_detect_2024" \
+  -d '{"audioBase64": "//OExAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA...TRUNCATED", "language": "malayalam"}' 
+
+# malayalam_ai_3.mp3 (Expected: AI)
+curl -X POST https://gaurav00107-ai-voice-detection.hf.space/api/v1/voice/detect \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: sk_hackathon_voice_detect_2024" \
+  -d '{"audioBase64": "//OExAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA...TRUNCATED", "language": "malayalam"}' 
+
+# tamil_ai_1.mp3 (Expected: AI)
+curl -X POST https://gaurav00107-ai-voice-detection.hf.space/api/v1/voice/detect \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: sk_hackathon_voice_detect_2024" \
+  -d '{"audioBase64": "//OExAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA...TRUNCATED", "language": "tamil"}' 
+
+# tamil_ai_2.mp3 (Expected: AI)
+curl -X POST https://gaurav00107-ai-voice-detection.hf.space/api/v1/voice/detect \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: sk_hackathon_voice_detect_2024" \
+  -d '{"audioBase64": "//OExAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA...TRUNCATED", "language": "tamil"}' 
+
+# tamil_ai_3.mp3 (Expected: AI)
+curl -X POST https://gaurav00107-ai-voice-detection.hf.space/api/v1/voice/detect \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: sk_hackathon_voice_detect_2024" \
+  -d '{"audioBase64": "//OExAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA...TRUNCATED", "language": "tamil"}' 
+
+# tamil_human_1.wav (Expected: HUMAN)
+curl -X POST https://gaurav00107-ai-voice-detection.hf.space/api/v1/voice/detect \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: sk_hackathon_voice_detect_2024" \
+  -d '{"audioBase64": "UklGRiTgBgBXQVZFZm10IBAAAAABAAEAgLsAAAB3AQACABAAZG...TRUNCATED", "language": "tamil"}' 
+
+# tamil_human_2.wav (Expected: HUMAN)
+curl -X POST https://gaurav00107-ai-voice-detection.hf.space/api/v1/voice/detect \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: sk_hackathon_voice_detect_2024" \
+  -d '{"audioBase64": "UklGRiSgBQBXQVZFZm10IBAAAAABAAEAgLsAAAB3AQACABAAZG...TRUNCATED", "language": "tamil"}' 
+
+# telugu_ai_1.mp3 (Expected: AI)
+curl -X POST https://gaurav00107-ai-voice-detection.hf.space/api/v1/voice/detect \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: sk_hackathon_voice_detect_2024" \
+  -d '{"audioBase64": "//OExAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA...TRUNCATED", "language": "telugu"}' 
+
+# telugu_ai_2.mp3 (Expected: AI)
+curl -X POST https://gaurav00107-ai-voice-detection.hf.space/api/v1/voice/detect \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: sk_hackathon_voice_detect_2024" \
+  -d '{"audioBase64": "//OExAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA...TRUNCATED", "language": "telugu"}' 
+
+# telugu_ai_3.mp3 (Expected: AI)
+curl -X POST https://gaurav00107-ai-voice-detection.hf.space/api/v1/voice/detect \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: sk_hackathon_voice_detect_2024" \
+  -d '{"audioBase64": "//OExAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA...TRUNCATED", "language": "telugu"}' 
+

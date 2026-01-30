@@ -1,0 +1,103 @@
+{
+  "total": 7,
+  "correct": 7,
+  "incorrect": 0,
+  "missing": 6,
+  "by_language": {
+    "Tamil": {
+      "correct": 1,
+      "total": 1
+    },
+    "English": {
+      "correct": 3,
+      "total": 3
+    },
+    "Hindi": {
+      "correct": 1,
+      "total": 1
+    },
+    "Malayalam": {
+      "correct": 1,
+      "total": 1
+    },
+    "Telugu": {
+      "correct": 1,
+      "total": 1
+    }
+  },
+  "by_type": {
+    "AI_GENERATED": {
+      "correct": 7,
+      "total": 7
+    },
+    "HUMAN": {
+      "correct": 0,
+      "total": 0
+    }
+  },
+  "details": [
+    {
+      "file": "english_ai_1.mp3",
+      "language": "English",
+      "expected": "AI_GENERATED",
+      "predicted": "AI_GENERATED",
+      "confidence": 0.69,
+      "correct": true,
+      "explanation": "Controlled pitch variation typical of AI synthesis; Smooth energy contour suggesting digital generation"
+    },
+    {
+      "file": "english_ai_2.mp3",
+      "language": "English",
+      "expected": "AI_GENERATED",
+      "predicted": "AI_GENERATED",
+      "confidence": 0.72,
+      "correct": true,
+      "explanation": "Spectral characteristics consistent with synthetic voice; Smooth energy contour suggesting digital generation"
+    },
+    {
+      "file": "hindi_ai_1.mp3",
+      "language": "Hindi",
+      "expected": "AI_GENERATED",
+      "predicted": "AI_GENERATED",
+      "confidence": 0.84,
+      "correct": true,
+      "explanation": "Controlled pitch variation typical of AI synthesis; Spectral characteristics consistent with synthetic voice"
+    },
+    {
+      "file": "tamil_ai_1.mp3",
+      "language": "Tamil",
+      "expected": "AI_GENERATED",
+      "predicted": "AI_GENERATED",
+      "confidence": 0.72,
+      "correct": true,
+      "explanation": "Spectral characteristics consistent with synthetic voice; Smooth energy contour suggesting digital generation"
+    },
+    {
+      "file": "telugu_ai_1.mp3",
+      "language": "Telugu",
+      "expected": "AI_GENERATED",
+      "predicted": "AI_GENERATED",
+      "confidence": 0.74,
+      "correct": true,
+      "explanation": "Controlled pitch variation typical of AI synthesis; Smooth energy contour suggesting digital generation"
+    },
+    {
+      "file": "malayalam_ai_1.mp3",
+      "language": "Malayalam",
+      "expected": "AI_GENERATED",
+      "predicted": "AI_GENERATED",
+      "confidence": 0.84,
+      "correct": true,
+      "explanation": "Controlled pitch variation typical of AI synthesis; Spectral characteristics consistent with synthetic voice"
+    },
+    {
+      "file": "sample voice 1.mp3",
+      "language": "English",
+      "expected": "AI_GENERATED",
+      "predicted": "AI_GENERATED",
+      "confidence": 0.92,
+      "correct": true,
+      "explanation": "Controlled pitch variation typical of AI synthesis; Limited pitch range detected"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+name: Keep HuggingFace Space Alive
+
+on:
+  schedule:
+    # Run every 15 minutes
+    - cron: '*/15 * * * *'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping API to keep it alive
+        run: |
+          echo "Pinging HuggingFace Space..."
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://gaurav00107-ai-voice-detection.hf.space/)
+          echo "Response code: $response"
+          if [ "$response" = "200" ]; then
+            echo "✅ Space is alive!"
+          else
+            echo "⚠️ Space returned $response - might be waking up"
+          fi
