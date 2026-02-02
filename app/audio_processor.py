@@ -10,6 +10,10 @@ from typing import Dict, Any, Tuple
 
 import numpy as np
 import librosa
+import librosa.display
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 from pydub import AudioSegment
 
 
@@ -305,6 +309,27 @@ class AudioProcessor:
         features = self.extract_features(audio, sr)
         
         return features, audio, sr
+    
+    def generate_spectrogram_base64(self, audio: np.ndarray, sr: int) -> str:
+        """Generates a Mel-Spectrogram visualization as Base64 image."""
+        try:
+            plt.figure(figsize=(10, 4))
+            S = librosa.feature.melspectrogram(y=audio, sr=sr, n_mels=128, fmax=8000)
+            S_dB = librosa.power_to_db(S, ref=np.max)
+            librosa.display.specshow(S_dB, x_axis='time', y_axis='mel', sr=sr, fmax=8000)
+            plt.colorbar(format='%+2.0f dB')
+            plt.title('Mel-frequency spectrogram')
+            plt.tight_layout()
+            
+            buf = io.BytesIO()
+            plt.savefig(buf, format='png')
+            buf.seek(0)
+            plt.close()
+            
+            return base64.b64encode(buf.read()).decode('utf-8')
+        except Exception as e:
+            print(f"Spectrogram error: {e}")
+            return None
 
 
 # Singleton instance

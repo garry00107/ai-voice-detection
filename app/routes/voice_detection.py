@@ -77,6 +77,10 @@ class VoiceDetectionResponse(BaseModel):
         ..., 
         description="Short explanation for the classification decision"
     )
+    spectrogramBase64: Optional[str] = Field(
+        None,
+        description="Base64-encoded PNG image of the Mel-Spectrogram for visual verification"
+    )
 
 
 class ErrorResponse(BaseModel):
@@ -128,13 +132,17 @@ async def detect_voice(
             audio_bytes=audio_bytes
         )
         
+        # Generate visual explanation (Spectrogram)
+        spec_b64 = audio_processor.generate_spectrogram_base64(audio_samples, sample_rate)
+
         # Build response
         return VoiceDetectionResponse(
             status="success",
             language=request.language,
             classification=result['classification'],
             confidenceScore=result['confidenceScore'],
-            explanation=result['explanation']
+            explanation=result['explanation'],
+            spectrogramBase64=spec_b64
         )
         
     except ValueError as e:
