@@ -239,8 +239,28 @@ class AudioProcessor:
             for i in range(tonnetz.shape[0]):
                 features[f'tonnetz_{i}_mean'] = float(np.mean(tonnetz[i]))
         except Exception:
-            for i in range(6):
                 features[f'tonnetz_{i}_mean'] = 0.0
+        
+        # 12. Vocoder Artifact Features (High-Frequency Analysis)
+        try:
+            # Calculate High-Frequency Energy Ratio (>4kHz vs <4kHz)
+            # Neural vocoders often display anomalies in high frequency bands
+            S = np.abs(librosa.stft(audio, n_fft=self.N_FFT, hop_length=self.HOP_LENGTH))
+            
+            # Calculate bin index for 4000Hz cutoff
+            # Bin Hz = sr / n_fft. Index = freq / (sr/n_fft) = freq * n_fft / sr
+            cutoff_bin = int(4000 * self.N_FFT / sr)
+            
+            if cutoff_bin < S.shape[0]:
+                high_freq_energy = np.sum(S[cutoff_bin:, :])
+                low_freq_energy = np.sum(S[:cutoff_bin, :])
+                hf_energy_ratio = high_freq_energy / (low_freq_energy + 1e-6)
+                features['hf_energy_ratio'] = float(hf_energy_ratio)
+            else:
+                 features['hf_energy_ratio'] = 0.0
+                 
+        except Exception:
+            features['hf_energy_ratio'] = 0.0
         
         return features
     

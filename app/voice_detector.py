@@ -227,6 +227,20 @@ class VoiceDetector:
             reasons.append("Limited temporal dynamics")
         else:
             human_score += 0.03
+
+        # === VOCODER ARTIFACTS (High-Freq analysis) (Weight: 10%) ===
+        # Neural vocoders often leave artifacts in high frequencies or band-limit audio
+        hf_energy_ratio = features.get('hf_energy_ratio', 0.1)
+        if hf_energy_ratio < 0.01:
+            # Extremely low high-freq energy (suspicious cutoff)
+            ai_score += 0.15
+            reasons.append("Abnormal high-frequency cutoff (Possible Neural Vocoder)")
+        elif hf_energy_ratio > 0.8:
+            # Suspiciously high HF energy (noise artifacts)
+            ai_score += 0.10
+            reasons.append("High-frequency spectral artifacts detected")
+        else:
+            human_score += 0.05
         
         # === FINAL CLASSIFICATION ===
         total_score = ai_score + human_score
