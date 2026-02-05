@@ -20,7 +20,7 @@ jobs:
           echo "Preparing keep-alive request..."
           
           # Build JSON payload file (avoids command-line argument size limits)
-          echo -n '{"language": "English", "audioBase64": "' > payload.json
+          echo -n '{"language": "English", "audioFormat": "mp3", "audioBase64": "' > payload.json
           cat tests/keep_alive_sample.txt | tr -d '\n\r' >> payload.json
           echo '"}' >> payload.json
           
