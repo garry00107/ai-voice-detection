@@ -28,7 +28,7 @@ jobs:
           echo "Sending POST request..."
           
           # Use curl with file-based payload
-          response=$(curl -X POST https://gaurav00107-ai-voice-detection.hf.space/api/detect-voice \
+          response=$(curl -X POST https://gaurav00107-ai-voice-detection.hf.space/api/voice-detection \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${API_KEY}" \
             -d @payload.json \
