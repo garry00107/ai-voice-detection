@@ -11,24 +11,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Send API Request with Audio Sample
+        env:
+          API_KEY: ${{ secrets.API_KEY }}
         run: |
           echo "Preparing keep-alive request..."
           
-          # Read audio sample created in tests/keep_alive_sample.txt
-          # Remove newlines to ensure valid JSON string
-          AUDIO_DATA=$(cat tests/keep_alive_sample.txt | tr -d '\n' | tr -d '\r')
+          # Build JSON payload file (avoids command-line argument size limits)
+          echo -n '{"audioBase64": "' > payload.json
+          cat tests/keep_alive_sample.txt | tr -d '\n\r' >> payload.json
+          echo '"}' >> payload.json
           
-          echo "Sending POST request to https://gaurav00107-ai-voice-detection.hf.space/api/detect-voice"
+          echo "Payload size: $(wc -c < payload.json) bytes"
+          echo "Sending POST request..."
           
-          # Use curl with POST, passing API key and audio data
-          # Write output to response variable, append HTTP status code
+          # Use curl with file-based payload
           response=$(curl -X POST https://gaurav00107-ai-voice-detection.hf.space/api/detect-voice \
             -H "Content-Type: application/json" \
-            -H "x-api-key: ${{ secrets.API_KEY }}" \
-            -d "{\"audioBase64\": \"$AUDIO_DATA\"}" \
+            -H "x-api-key: ${API_KEY}" \
+            -d @payload.json \
             -w "\nHTTP_STATUS:%{http_code}" \
             --max-time 300 \
             -s)
@@ -37,14 +40,14 @@ jobs:
           body=$(echo "$response" | sed "s/HTTP_STATUS:.*//")
           
           echo "Response Code: $http_code"
-          # Optional: Print first 100 chars of body to avoid flooding logs with base64 response
-          echo "Response Body Start: $(echo $body | cut -c1-100)..."
+          echo "Response Body (first 200 chars): $(echo "$body" | head -c 200)..."
+          
+          # Clean up
+          rm -f payload.json
           
           if [ "$http_code" = "200" ]; then
             echo "✅ Keep-alive successful! API is responsive."
           else
             echo "⚠️ Request failed with status $http_code"
-            # We don't fail the build immediately to allow retry or distinct error handling if needed,
-            # but usually for keep-alive we want to know if it failed.
             exit 1
           fi
