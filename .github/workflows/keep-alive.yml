@@ -2,21 +2,49 @@ name: Keep HuggingFace Space Alive
 
 on:
   schedule:
-    # Run every 15 minutes
-    - cron: '*/15 * * * *'
+    # Run every 60 minutes to prevent HF Space from sleeping
+    - cron: '0 * * * *'
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping API to keep it alive
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Send API Request with Audio Sample
         run: |
-          echo "Pinging HuggingFace Space..."
-          response=$(curl -s -o /dev/null -w "%{http_code}" https://gaurav00107-ai-voice-detection.hf.space/)
-          echo "Response code: $response"
-          if [ "$response" = "200" ]; then
-            echo "✅ Space is alive!"
+          echo "Preparing keep-alive request..."
+          
+          # Read audio sample created in tests/keep_alive_sample.txt
+          # Remove newlines to ensure valid JSON string
+          AUDIO_DATA=$(cat tests/keep_alive_sample.txt | tr -d '\n' | tr -d '\r')
+          
+          echo "Sending POST request to https://gaurav00107-ai-voice-detection.hf.space/api/detect-voice"
+          
+          # Use curl with POST, passing API key and audio data
+          # Write output to response variable, append HTTP status code
+          response=$(curl -X POST https://gaurav00107-ai-voice-detection.hf.space/api/detect-voice \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${{ secrets.API_KEY }}" \
+            -d "{\"audioBase64\": \"$AUDIO_DATA\"}" \
+            -w "\nHTTP_STATUS:%{http_code}" \
+            --max-time 300 \
+            -s)
+            
+          http_code=$(echo "$response" | grep "HTTP_STATUS" | cut -d":" -f2)
+          body=$(echo "$response" | sed "s/HTTP_STATUS:.*//")
+          
+          echo "Response Code: $http_code"
+          # Optional: Print first 100 chars of body to avoid flooding logs with base64 response
+          echo "Response Body Start: $(echo $body | cut -c1-100)..."
+          
+          if [ "$http_code" = "200" ]; then
+            echo "✅ Keep-alive successful! API is responsive."
           else
-            echo "⚠️ Space returned $response - might be waking up"
+            echo "⚠️ Request failed with status $http_code"
+            # We don't fail the build immediately to allow retry or distinct error handling if needed,
+            # but usually for keep-alive we want to know if it failed.
+            exit 1
           fi
