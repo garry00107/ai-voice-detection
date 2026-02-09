@@ -85,6 +85,33 @@ async def health_check():
     }
 
 
+@app.get("/health", tags=["Health"])
+async def health_endpoint():
+    """
+    Dedicated health check endpoint for automated evaluation.
+    Returns detailed status including model loading state.
+    """
+    from app.ml_detector import get_ml_detector
+    
+    try:
+        detector = get_ml_detector()
+        models_loaded = detector.model is not None
+    except:
+        models_loaded = False
+    
+    return {
+        "status": "healthy",
+        "version": "1.0.0",
+        "models_loaded": models_loaded,
+        "languages_supported": ["Tamil", "English", "Hindi", "Malayalam", "Telugu"],
+        "endpoints": {
+            "single": "/api/voice-detection",
+            "batch": "/api/voice-detection/batch",
+            "docs": "/docs"
+        }
+    }
+
+
 # Root POST endpoint for hackathon compatibility
 from app.audio_processor import audio_processor
 from app.voice_detector import voice_detector
