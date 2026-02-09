@@ -452,9 +452,18 @@ with gr.Blocks(
                 elem_classes=["result-box"]
             )
             
+            # Load placeholder image for spectrogram
+            import os
+            placeholder_path = os.path.join(os.path.dirname(__file__), "assets", "spectrogram_placeholder.png")
+            placeholder_img = None
+            if os.path.exists(placeholder_path):
+                from PIL import Image
+                placeholder_img = Image.open(placeholder_path)
+            
             spectrogram = gr.Image(
                 label="📊 Mel-Spectrogram Visualization",
-                type="pil"
+                type="pil",
+                value=placeholder_img
             )
             
             details_md = gr.Markdown()
