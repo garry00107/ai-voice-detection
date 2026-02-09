@@ -507,7 +507,6 @@ with gr.Blocks(
                 <div style="color: #667eea; font-weight: bold; margin-top: 10px;">30% Weight</div>
             </div>
         </div>
-    </div>
     """)
     
     # Footer
@@ -526,5 +525,80 @@ with gr.Blocks(
     )
 
 
+# ============ BATCH PROCESSING APP ============
+def process_batch(files, language):
+    """Process multiple audio files"""
+    if not files:
+        return "<div style='text-align:center;padding:40px;color:#888;'>📁 Upload files to analyze</div>"
+    
+    results = []
+    ai_count = 0
+    human_count = 0
+    
+    for file in files:
+        try:
+            audio, sr = librosa.load(file, sr=22050, mono=True)
+            duration = len(audio) / sr
+            if duration < 0.5:
+                results.append(f"⚠️ {os.path.basename(file)}: Too short")
+                continue
+            
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
+                import soundfile as sf
+                sf.write(tmp.name, audio, sr)
+                with open(tmp.name, 'rb') as f:
+                    audio_bytes = f.read()
+                audio_b64 = base64.b64encode(audio_bytes).decode()
+                os.unlink(tmp.name)
+            
+            features, samples, rate = audio_processor.process_audio_with_samples(audio_b64)
+            result = voice_detector.detect(features, audio=samples, sr=rate, audio_bytes=audio_bytes)
+            
+            cls = result['classification']
+            conf = result['confidenceScore']
+            emoji = "🤖" if cls == "AI_GENERATED" else "👤"
+            color = "#ff4444" if cls == "AI_GENERATED" else "#44ff88"
+            
+            if cls == "AI_GENERATED":
+                ai_count += 1
+            else:
+                human_count += 1
+            
+            results.append(f"<div style='background:rgba(255,255,255,0.05);padding:10px;margin:5px 0;border-radius:8px;border-left:3px solid {color};'>"
+                          f"<b>{emoji} {os.path.basename(file)}</b> → <span style='color:{color};'>{cls}</span> ({conf:.0%})</div>")
+        except Exception as e:
+            results.append(f"<div style='color:#ff4444;'>❌ {os.path.basename(file)}: {str(e)}</div>")
+    
+    summary = f"""
+    <div style='background:rgba(102,126,234,0.2);padding:15px;border-radius:10px;margin-bottom:15px;text-align:center;'>
+        <h3 style='color:#667eea;margin:0;'>📊 Batch Results</h3>
+        <p style='margin:10px 0;'>🤖 AI: <b>{ai_count}</b> | 👤 Human: <b>{human_count}</b> | Total: <b>{len(files)}</b></p>
+    </div>
+    """
+    return summary + "".join(results)
+
+
+# Second demo for batch processing
+batch_demo = gr.Interface(
+    fn=process_batch,
+    inputs=[
+        gr.Files(label="📁 Upload Multiple Audio Files", file_types=["audio"]),
+        gr.Dropdown(["English", "Tamil", "Hindi", "Malayalam", "Telugu"], value="English", label="Language")
+    ],
+    outputs=gr.HTML(label="Results"),
+    title="📦 Batch Processing",
+    description="Upload multiple audio files to analyze them all at once. Max 10 files."
+)
+
+
+# Combined app with tabs
+combined_app = gr.TabbedInterface(
+    [demo, batch_demo],
+    ["🎤 Single Analysis", "📦 Batch Processing"],
+    title="AI Voice Detection | India AI Impact Buildathon"
+)
+
+
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=7860)
+    combined_app.launch(server_name="0.0.0.0", server_port=7860)
+
