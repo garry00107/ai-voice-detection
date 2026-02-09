@@ -483,11 +483,17 @@ class VoiceDetector:
             
             explanation = f"Human voice verified: {', '.join(natural_signs[:3])}. Confidence: {confidence:.0%}"
         
+        # Build model_scores dict for API response
+        model_scores_dict = {}
+        for score, weight, method_name in scores:
+            model_scores_dict[method_name] = round(score, 4)
+        
         return {
             'classification': classification,
             'confidenceScore': round(confidence, 2),
             'explanation': explanation,
-            'method': method
+            'method': method,
+            'model_scores': model_scores_dict
         }
 
 
