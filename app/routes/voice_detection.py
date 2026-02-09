@@ -2,7 +2,7 @@
 Voice Detection API Routes
 Handles the main voice detection endpoint
 """
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field, field_validator
 
 from fastapi import APIRouter, Request, Depends, HTTPException
@@ -58,6 +58,13 @@ class VoiceDetectionRequest(BaseModel):
         return v
 
 
+class ModelScores(BaseModel):
+    """Individual model scores breakdown."""
+    heuristic: Optional[float] = Field(None, description="Heuristic analysis score")
+    cnn_mfcc: Optional[float] = Field(None, description="CNN MFCC model score")
+    transformers: Optional[float] = Field(None, description="Wav2Vec2 transformer score")
+
+
 class VoiceDetectionResponse(BaseModel):
     """Response body for successful voice detection."""
     
@@ -76,6 +83,10 @@ class VoiceDetectionResponse(BaseModel):
     explanation: str = Field(
         ..., 
         description="Short explanation for the classification decision"
+    )
+    modelScores: Optional[ModelScores] = Field(
+        None,
+        description="Individual scores from each detection model"
     )
     spectrogramBase64: Optional[str] = Field(
         None,
@@ -135,6 +146,15 @@ async def detect_voice(
         # Generate visual explanation (Spectrogram)
         spec_b64 = audio_processor.generate_spectrogram_base64(audio_samples, sample_rate)
 
+        # Extract model scores if available
+        model_scores = None
+        if 'model_scores' in result:
+            model_scores = ModelScores(
+                heuristic=result['model_scores'].get('heuristic'),
+                cnn_mfcc=result['model_scores'].get('cnn_mfcc'),
+                transformers=result['model_scores'].get('transformers')
+            )
+        
         # Build response
         return VoiceDetectionResponse(
             status="success",
@@ -142,6 +162,7 @@ async def detect_voice(
             classification=result['classification'],
             confidenceScore=result['confidenceScore'],
             explanation=result['explanation'],
+            modelScores=model_scores,
             spectrogramBase64=spec_b64
         )
         
@@ -163,3 +184,113 @@ async def detect_voice(
                 "message": f"Internal server error: {str(e)}"
             }
         )
+
+
+# Batch Processing Models
+class BatchAudioItem(BaseModel):
+    """Single audio item in batch request."""
+    id: str = Field(..., description="Unique identifier for this audio sample")
+    language: str = Field(..., description="Language of the audio")
+    audioFormat: str = Field(default="mp3", description="Audio format")
+    audioBase64: str = Field(..., description="Base64 encoded audio")
+
+
+class BatchRequest(BaseModel):
+    """Request body for batch voice detection."""
+    items: List[BatchAudioItem] = Field(..., description="List of audio items to process", max_length=10)
+
+
+class BatchResultItem(BaseModel):
+    """Single result in batch response."""
+    id: str
+    status: str
+    classification: Optional[str] = None
+    confidenceScore: Optional[float] = None
+    explanation: Optional[str] = None
+    modelScores: Optional[ModelScores] = None
+    error: Optional[str] = None
+
+
+class BatchResponse(BaseModel):
+    """Response body for batch voice detection."""
+    status: str = "success"
+    totalItems: int
+    successCount: int
+    errorCount: int
+    results: List[BatchResultItem]
+
+
+@router.post(
+    "/voice-detection/batch",
+    response_model=BatchResponse,
+    summary="Batch Voice Detection",
+    description="Process multiple audio samples in a single request. Max 10 items per batch."
+)
+async def detect_voice_batch(
+    request: BatchRequest,
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Process multiple audio samples for voice detection.
+    
+    **Limits:**
+    - Maximum 10 audio samples per batch
+    - No spectrograms returned in batch mode (for performance)
+    """
+    import base64
+    
+    results = []
+    success_count = 0
+    error_count = 0
+    
+    for item in request.items:
+        try:
+            # Decode and process audio
+            audio_bytes = base64.b64decode(item.audioBase64)
+            features, audio_samples, sample_rate = audio_processor.process_audio_with_samples(
+                item.audioBase64
+            )
+            
+            # Detect
+            result = voice_detector.detect(
+                features,
+                audio=audio_samples,
+                sr=sample_rate,
+                audio_bytes=audio_bytes
+            )
+            
+            # Extract model scores
+            model_scores = None
+            if 'model_scores' in result:
+                model_scores = ModelScores(
+                    heuristic=result['model_scores'].get('heuristic'),
+                    cnn_mfcc=result['model_scores'].get('cnn_mfcc'),
+                    transformers=result['model_scores'].get('transformers')
+                )
+            
+            results.append(BatchResultItem(
+                id=item.id,
+                status="success",
+                classification=result['classification'],
+                confidenceScore=result['confidenceScore'],
+                explanation=result['explanation'],
+                modelScores=model_scores
+            ))
+            success_count += 1
+            
+        except Exception as e:
+            results.append(BatchResultItem(
+                id=item.id,
+                status="error",
+                error=str(e)
+            ))
+            error_count += 1
+    
+    return BatchResponse(
+        status="success",
+        totalItems=len(request.items),
+        successCount=success_count,
+        errorCount=error_count,
+        results=results
+    )
+

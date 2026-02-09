@@ -12,3 +12,4 @@ soundfile>=0.12.1
 transformers>=4.35.0
 torch>=2.0.0
 matplotlib
+gradio>=4.0.0
