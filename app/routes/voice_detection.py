@@ -4,6 +4,8 @@ Handles the main voice detection endpoint
 """
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field, field_validator
+import hashlib
+import time
 
 from fastapi import APIRouter, Request, Depends, HTTPException
 
@@ -14,6 +16,42 @@ from app.voice_detector import voice_detector
 
 # Create router
 router = APIRouter(prefix="/api", tags=["Voice Detection"])
+
+
+# Simple in-memory cache for repeated requests (TTL: 5 minutes)
+_detection_cache: Dict[str, Dict[str, Any]] = {}
+_cache_ttl = 300  # 5 minutes
+
+
+def _get_cache_key(audio_b64: str) -> str:
+    """Generate cache key from audio hash (first/last 1000 chars + length)"""
+    content = f"{audio_b64[:1000]}_{audio_b64[-1000:]}_{len(audio_b64)}"
+    return hashlib.md5(content.encode()).hexdigest()
+
+
+def _get_cached_result(cache_key: str) -> Optional[Dict[str, Any]]:
+    """Get result from cache if valid"""
+    if cache_key in _detection_cache:
+        entry = _detection_cache[cache_key]
+        if time.time() - entry['timestamp'] < _cache_ttl:
+            return entry['result']
+        else:
+            del _detection_cache[cache_key]
+    return None
+
+
+def _cache_result(cache_key: str, result: Dict[str, Any]):
+    """Store result in cache"""
+    # Limit cache size to 100 entries
+    if len(_detection_cache) > 100:
+        # Remove oldest entry
+        oldest = min(_detection_cache.keys(), key=lambda k: _detection_cache[k]['timestamp'])
+        del _detection_cache[oldest]
+    
+    _detection_cache[cache_key] = {
+        'timestamp': time.time(),
+        'result': result
+    }
 
 
 # Supported languages
@@ -126,14 +164,31 @@ async def detect_voice(
     **Supported Languages:** Tamil, English, Hindi, Malayalam, Telugu
     """
     try:
+        # Check cache first for faster response on repeated requests
+        cache_key = _get_cache_key(request.audioBase64)
+        cached = _get_cached_result(cache_key)
+        if cached:
+            # Return cached result with updated language
+            cached['language'] = request.language
+            return VoiceDetectionResponse(**cached)
+        
         # Decode audio bytes for HF API
         import base64
         audio_bytes = base64.b64decode(request.audioBase64)
+        
+        # Validate audio length (minimum 0.5 seconds)
+        if len(audio_bytes) < 8000:  # Rough minimum for 0.5s audio
+            raise ValueError("Audio too short. Minimum 0.5 seconds required.")
         
         # Process audio and extract features + raw samples
         features, audio_samples, sample_rate = audio_processor.process_audio_with_samples(
             request.audioBase64
         )
+        
+        # Validate audio duration
+        duration = len(audio_samples) / sample_rate if sample_rate > 0 else 0
+        if duration < 0.5:
+            raise ValueError(f"Audio too short ({duration:.1f}s). Minimum 0.5 seconds required.")
         
         # Detect voice type using ensemble (heuristic + local ML + HF API)
         result = voice_detector.detect(
@@ -156,15 +211,20 @@ async def detect_voice(
             )
         
         # Build response
-        return VoiceDetectionResponse(
-            status="success",
-            language=request.language,
-            classification=result['classification'],
-            confidenceScore=result['confidenceScore'],
-            explanation=result['explanation'],
-            modelScores=model_scores,
-            spectrogramBase64=spec_b64
-        )
+        response_data = {
+            "status": "success",
+            "language": request.language,
+            "classification": result['classification'],
+            "confidenceScore": result['confidenceScore'],
+            "explanation": result['explanation'],
+            "modelScores": model_scores,
+            "spectrogramBase64": spec_b64
+        }
+        
+        # Cache the result for faster repeat requests
+        _cache_result(cache_key, response_data)
+        
+        return VoiceDetectionResponse(**response_data)
         
     except ValueError as e:
         # Handle audio processing errors
