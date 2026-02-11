@@ -117,11 +117,17 @@ from app.audio_processor import audio_processor
 from app.voice_detector import voice_detector
 from pydantic import BaseModel
 import base64
+from fastapi.responses import RedirectResponse
 
 class HackathonRequest(BaseModel):
     language: str = "english"
     audioFormat: str = "mp3"
     audioBase64: str
+
+@app.get("/", include_in_schema=False)
+async def root_redirect():
+    """Redirect root to Gradio UI"""
+    return RedirectResponse(url="/gradio")
 
 @app.post("/", tags=["Detection"])
 async def root_detect(request: HackathonRequest):

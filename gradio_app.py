@@ -921,5 +921,14 @@ combined_app = gr.TabbedInterface(
 )
 
 
+# Mount Gradio app on FastAPI app to expose API routes
+from app.main import app as fastapi_app
+import uvicorn
+
+# Mount at /gradio to allow API routes to work
+app = gr.mount_gradio_app(fastapi_app, combined_app, path="/gradio")
+
+
 if __name__ == "__main__":
-    combined_app.launch(server_name="0.0.0.0", server_port=7860)
+    # Use uvicorn to run the FastAPI app (which now includes Gradio)
+    uvicorn.run(app, host="0.0.0.0", port=7860)
