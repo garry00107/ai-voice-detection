@@ -600,14 +600,326 @@ batch_demo = gr.Interface(
 )
 
 
-# Combined app with tabs
+# ============ OPTION A: COMPARISON MODE ============
+def compare_voices(audio1, audio2):
+    """Compare two audio files side by side"""
+    if audio1 is None or audio2 is None:
+        return None, None, "<div style='text-align:center;padding:40px;color:#888;'>Upload two audio files to compare</div>"
+    
+    results = []
+    spectrograms = []
+    
+    for i, audio in enumerate([audio1, audio2]):
+        label = "Audio 1" if i == 0 else "Audio 2"
+        try:
+            if isinstance(audio, tuple):
+                sr, audio_array = audio
+                audio_array = audio_array.astype(np.float32)
+                if len(audio_array.shape) > 1:
+                    audio_array = audio_array.mean(axis=1)
+                audio_array = audio_array / np.max(np.abs(audio_array) + 1e-8)
+            else:
+                audio_array, sr = librosa.load(audio, sr=22050, mono=True)
+            
+            # Generate spectrogram
+            fig, ax = plt.subplots(figsize=(6, 3))
+            fig.patch.set_facecolor('#1a1a2e')
+            ax.set_facecolor('#1a1a2e')
+            D = librosa.amplitude_to_db(np.abs(librosa.stft(audio_array)), ref=np.max)
+            librosa.display.specshow(D, sr=sr, x_axis='time', y_axis='hz', ax=ax, cmap='magma')
+            ax.set_title(label, color='white', fontsize=12)
+            ax.tick_params(colors='#888')
+            for spine in ax.spines.values():
+                spine.set_color('#333')
+            plt.tight_layout()
+            buf = io.BytesIO()
+            plt.savefig(buf, format='png', facecolor='#1a1a2e', edgecolor='none', dpi=100)
+            plt.close()
+            buf.seek(0)
+            from PIL import Image
+            spectrograms.append(Image.open(buf))
+            
+            # Convert to bytes for detection
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
+                import soundfile as sf
+                sf.write(tmp.name, audio_array, sr)
+                with open(tmp.name, 'rb') as f:
+                    audio_bytes = f.read()
+                audio_b64 = base64.b64encode(audio_bytes).decode()
+                os.unlink(tmp.name)
+            
+            # Detect
+            features, samples, rate = audio_processor.process_audio_with_samples(audio_b64)
+            result = voice_detector.detect(features, audio=samples, sr=rate, audio_bytes=audio_bytes)
+            
+            cls = result['classification']
+            conf = result['confidenceScore']
+            emoji = "🤖" if cls == "AI_GENERATED" else "👤"
+            color = "#ff4444" if cls == "AI_GENERATED" else "#44ff88"
+            
+            results.append({
+                'label': label,
+                'cls': cls,
+                'conf': conf,
+                'emoji': emoji,
+                'color': color
+            })
+        except Exception as e:
+            spectrograms.append(None)
+            results.append({'label': label, 'cls': 'ERROR', 'conf': 0, 'emoji': '❌', 'color': '#888'})
+    
+    # Build comparison HTML
+    r1, r2 = results[0], results[1]
+    comparison_html = f"""
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px;">
+        <div style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: 15px; border-left: 4px solid {r1['color']}; text-align: center;">
+            <h3 style="color: white; margin: 0 0 10px 0;">{r1['emoji']} Audio 1</h3>
+            <div style="font-size: 24px; color: {r1['color']}; font-weight: bold;">{r1['cls'].replace('_', ' ')}</div>
+            <div style="color: #888; margin-top: 5px;">Confidence: {r1['conf']:.0%}</div>
+        </div>
+        <div style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: 15px; border-left: 4px solid {r2['color']}; text-align: center;">
+            <h3 style="color: white; margin: 0 0 10px 0;">{r2['emoji']} Audio 2</h3>
+            <div style="font-size: 24px; color: {r2['color']}; font-weight: bold;">{r2['cls'].replace('_', ' ')}</div>
+            <div style="color: #888; margin-top: 5px;">Confidence: {r2['conf']:.0%}</div>
+        </div>
+    </div>
+    <div style="text-align: center; padding: 15px; background: rgba(102,126,234,0.2); border-radius: 10px; margin-top: 10px;">
+        <strong style="color: #667eea;">
+            {'✅ Both voices are IDENTICAL type' if r1['cls'] == r2['cls'] else '⚠️ DIFFERENT voice types detected!'}
+        </strong>
+    </div>
+    """
+    
+    return spectrograms[0], spectrograms[1], comparison_html
+
+
+comparison_demo = gr.Interface(
+    fn=compare_voices,
+    inputs=[
+        gr.Audio(label="🎤 Audio 1 (e.g., Human Voice)", sources=["upload", "microphone"]),
+        gr.Audio(label="🤖 Audio 2 (e.g., AI Voice)", sources=["upload", "microphone"])
+    ],
+    outputs=[
+        gr.Image(label="📊 Spectrogram 1"),
+        gr.Image(label="📊 Spectrogram 2"),
+        gr.HTML(label="🔍 Comparison Results")
+    ],
+    title="🔄 Voice Comparison Mode",
+    description="Upload two audio files to compare them side-by-side. Great for comparing human vs AI voices!"
+)
+
+
+# ============ OPTION B: CONFIDENCE EXPLAINER ============
+def explain_confidence(audio, language):
+    """Generate detailed confidence explanation with visual breakdown"""
+    if audio is None:
+        return "<div style='text-align:center;padding:40px;color:#888;'>Upload audio to see confidence breakdown</div>"
+    
+    try:
+        if isinstance(audio, tuple):
+            sr, audio_array = audio
+            audio_array = audio_array.astype(np.float32)
+            if len(audio_array.shape) > 1:
+                audio_array = audio_array.mean(axis=1)
+            audio_array = audio_array / np.max(np.abs(audio_array) + 1e-8)
+        else:
+            audio_array, sr = librosa.load(audio, sr=22050, mono=True)
+        
+        # Convert to bytes
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
+            import soundfile as sf
+            sf.write(tmp.name, audio_array, sr)
+            with open(tmp.name, 'rb') as f:
+                audio_bytes = f.read()
+            audio_b64 = base64.b64encode(audio_bytes).decode()
+            os.unlink(tmp.name)
+        
+        # Get detection with model scores
+        features, samples, rate = audio_processor.process_audio_with_samples(audio_b64)
+        result = voice_detector.detect(features, audio=samples, sr=rate, audio_bytes=audio_bytes)
+        
+        cls = result['classification']
+        conf = result['confidenceScore']
+        explanation = result.get('explanation', 'Analysis complete')
+        model_scores = result.get('model_scores', {})
+        
+        # Build visual breakdown
+        heuristic_score = model_scores.get('heuristic', 0)
+        cnn_score = model_scores.get('cnn_mfcc', 0)
+        transformer_score = model_scores.get('transformers', 0)
+        
+        def score_bar(label, score, weight, icon):
+            color = "#ff4444" if score > 0.5 else "#44ff88"
+            width = max(5, score * 100)
+            return f"""
+            <div style="margin: 15px 0;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <span style="color: white;">{icon} {label}</span>
+                    <span style="color: #888;">Weight: {weight}%</span>
+                </div>
+                <div style="background: rgba(255,255,255,0.1); border-radius: 10px; height: 30px; overflow: hidden;">
+                    <div style="background: linear-gradient(90deg, {color} 0%, {color}88 100%); height: 100%; width: {width}%; display: flex; align-items: center; justify-content: flex-end; padding-right: 10px; border-radius: 10px;">
+                        <span style="color: white; font-weight: bold;">{score:.0%}</span>
+                    </div>
+                </div>
+                <div style="color: #666; font-size: 0.8em; margin-top: 3px;">
+                    {'Leans AI' if score > 0.5 else 'Leans Human'} - {'High' if abs(score - 0.5) > 0.3 else 'Medium' if abs(score - 0.5) > 0.15 else 'Low'} confidence
+                </div>
+            </div>
+            """
+        
+        emoji = "🤖" if cls == "AI_GENERATED" else "👤"
+        main_color = "#ff4444" if cls == "AI_GENERATED" else "#44ff88"
+        
+        html = f"""
+        <div style="padding: 20px;">
+            <!-- Final Result -->
+            <div style="background: linear-gradient(135deg, {main_color}22 0%, {main_color}11 100%); padding: 25px; border-radius: 15px; text-align: center; border: 2px solid {main_color}; margin-bottom: 25px;">
+                <div style="font-size: 48px;">{emoji}</div>
+                <div style="font-size: 28px; color: {main_color}; font-weight: bold; margin: 10px 0;">{cls.replace('_', ' ')}</div>
+                <div style="color: white; font-size: 20px;">Overall Confidence: {conf:.0%}</div>
+            </div>
+            
+            <!-- Model Breakdown -->
+            <div style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: 15px;">
+                <h3 style="color: #667eea; margin: 0 0 15px 0; text-align: center;">📊 Model Breakdown</h3>
+                {score_bar("Wav2Vec2 Transformer", transformer_score, 60, "🤖")}
+                {score_bar("CNN on MFCC", cnn_score, 35, "�")}
+                {score_bar("Heuristic Analysis", heuristic_score, 30, "📊")}
+            </div>
+            
+            <!-- Explanation -->
+            <div style="background: rgba(102,126,234,0.15); padding: 20px; border-radius: 15px; margin-top: 20px;">
+                <h4 style="color: #667eea; margin: 0 0 10px 0;">🔬 Analysis Explanation</h4>
+                <p style="color: #aaa; margin: 0; line-height: 1.6;">{explanation}</p>
+            </div>
+        </div>
+        """
+        return html
+        
+    except Exception as e:
+        return f"<div style='color:#ff4444;padding:20px;'>Error: {str(e)}</div>"
+
+
+explainer_demo = gr.Interface(
+    fn=explain_confidence,
+    inputs=[
+        gr.Audio(label="🎤 Upload Audio", sources=["upload", "microphone"]),
+        gr.Dropdown(["English", "Tamil", "Hindi", "Malayalam", "Telugu"], value="English", label="Language")
+    ],
+    outputs=gr.HTML(label="🔍 Confidence Breakdown"),
+    title="🔬 Confidence Explainer",
+    description="See exactly WHY the AI made its decision - visual breakdown of each model's contribution"
+)
+
+
+# ============ OPTION C: REAL-TIME WAVEFORM ============
+def analyze_with_waveform(audio):
+    """Show both waveform and spectrogram with analysis"""
+    if audio is None:
+        return None, None, "<div style='text-align:center;padding:40px;color:#888;'>Record or upload audio</div>"
+    
+    try:
+        if isinstance(audio, tuple):
+            sr, audio_array = audio
+            audio_array = audio_array.astype(np.float32)
+            if len(audio_array.shape) > 1:
+                audio_array = audio_array.mean(axis=1)
+            audio_array = audio_array / np.max(np.abs(audio_array) + 1e-8)
+        else:
+            audio_array, sr = librosa.load(audio, sr=22050, mono=True)
+        
+        # Generate Waveform
+        fig1, ax1 = plt.subplots(figsize=(8, 2))
+        fig1.patch.set_facecolor('#1a1a2e')
+        ax1.set_facecolor('#1a1a2e')
+        times = np.linspace(0, len(audio_array)/sr, len(audio_array))
+        ax1.fill_between(times, audio_array, alpha=0.7, color='#667eea')
+        ax1.plot(times, audio_array, color='#764ba2', linewidth=0.5)
+        ax1.set_xlim(0, len(audio_array)/sr)
+        ax1.set_ylim(-1, 1)
+        ax1.set_xlabel('Time (s)', color='#888')
+        ax1.set_ylabel('Amplitude', color='#888')
+        ax1.set_title('🌊 Waveform', color='white')
+        ax1.tick_params(colors='#888')
+        for spine in ax1.spines.values():
+            spine.set_color('#333')
+        plt.tight_layout()
+        buf1 = io.BytesIO()
+        plt.savefig(buf1, format='png', facecolor='#1a1a2e', dpi=100)
+        plt.close()
+        buf1.seek(0)
+        from PIL import Image
+        waveform_img = Image.open(buf1)
+        
+        # Generate Spectrogram
+        fig2, ax2 = plt.subplots(figsize=(8, 3))
+        fig2.patch.set_facecolor('#1a1a2e')
+        ax2.set_facecolor('#1a1a2e')
+        D = librosa.amplitude_to_db(np.abs(librosa.stft(audio_array)), ref=np.max)
+        librosa.display.specshow(D, sr=sr, x_axis='time', y_axis='hz', ax=ax2, cmap='magma')
+        ax2.set_title('📊 Mel-Spectrogram', color='white')
+        ax2.tick_params(colors='#888')
+        for spine in ax2.spines.values():
+            spine.set_color('#333')
+        plt.tight_layout()
+        buf2 = io.BytesIO()
+        plt.savefig(buf2, format='png', facecolor='#1a1a2e', dpi=100)
+        plt.close()
+        buf2.seek(0)
+        spectrogram_img = Image.open(buf2)
+        
+        # Quick analysis
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
+            import soundfile as sf
+            sf.write(tmp.name, audio_array, sr)
+            with open(tmp.name, 'rb') as f:
+                audio_bytes = f.read()
+            audio_b64 = base64.b64encode(audio_bytes).decode()
+            os.unlink(tmp.name)
+        
+        features, samples, rate = audio_processor.process_audio_with_samples(audio_b64)
+        result = voice_detector.detect(features, audio=samples, sr=rate, audio_bytes=audio_bytes)
+        
+        cls = result['classification']
+        conf = result['confidenceScore']
+        emoji = "🤖" if cls == "AI_GENERATED" else "👤"
+        color = "#ff4444" if cls == "AI_GENERATED" else "#44ff88"
+        
+        result_html = f"""
+        <div style="background: linear-gradient(135deg, {color}22 0%, {color}11 100%); padding: 25px; border-radius: 15px; text-align: center; border: 2px solid {color};">
+            <div style="font-size: 48px;">{emoji}</div>
+            <div style="font-size: 24px; color: {color}; font-weight: bold;">{cls.replace('_', ' ')}</div>
+            <div style="color: white; margin-top: 5px;">Confidence: {conf:.0%}</div>
+        </div>
+        """
+        
+        return waveform_img, spectrogram_img, result_html
+        
+    except Exception as e:
+        return None, None, f"<div style='color:#ff4444;'>Error: {str(e)}</div>"
+
+
+waveform_demo = gr.Interface(
+    fn=analyze_with_waveform,
+    inputs=gr.Audio(label="🎤 Record or Upload Audio", sources=["upload", "microphone"]),
+    outputs=[
+        gr.Image(label="🌊 Waveform"),
+        gr.Image(label="📊 Spectrogram"),
+        gr.HTML(label="🔍 Result")
+    ],
+    title="🌊 Waveform Analysis",
+    description="Visualize both waveform and spectrogram of your audio in real-time"
+)
+
+
+# Combined app with all tabs
 combined_app = gr.TabbedInterface(
-    [demo, batch_demo],
-    ["🎤 Single Analysis", "📦 Batch Processing"],
+    [demo, batch_demo, comparison_demo, explainer_demo, waveform_demo],
+    ["🎤 Single", "📦 Batch", "🔄 Compare", "🔬 Explainer", "🌊 Waveform"],
     title="AI Voice Detection | India AI Impact Buildathon"
 )
 
 
 if __name__ == "__main__":
     combined_app.launch(server_name="0.0.0.0", server_port=7860)
-
