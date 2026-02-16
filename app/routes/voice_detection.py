@@ -1,11 +1,21 @@
 """
 Voice Detection API Routes
-Handles the main voice detection endpoint
+
+Provides REST API endpoints for AI-generated voice detection.
+Supports single audio analysis and batch processing with caching.
+
+Endpoints:
+    POST /api/voice-detection - Analyze a single audio sample
+    POST /api/voice-detection/batch - Process multiple audio samples
+
+Authentication:
+    All endpoints require x-api-key header with valid API key.
 """
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field, field_validator
 import hashlib
 import time
+import logging
 
 from fastapi import APIRouter, Request, Depends, HTTPException
 
@@ -13,6 +23,7 @@ from app.middleware.auth import verify_api_key
 from app.audio_processor import audio_processor
 from app.voice_detector import voice_detector
 
+logger = logging.getLogger(__name__)
 
 # Create router
 router = APIRouter(prefix="/api", tags=["Voice Detection"])
@@ -90,9 +101,14 @@ class VoiceDetectionRequest(BaseModel):
     
     @field_validator('audioBase64')
     @classmethod
-    def validate_audio(cls, v):
+    def validate_audio(cls, v: str) -> str:
+        """Validate that audioBase64 contains meaningful audio data."""
         if not v or len(v) < 100:
             raise ValueError("audioBase64 is required and must contain valid Base64 audio data")
+        # Basic base64 character validation
+        import re
+        if not re.match(r'^[A-Za-z0-9+/=\s]+$', v[:200]):
+            raise ValueError("audioBase64 contains invalid characters")
         return v
 
 

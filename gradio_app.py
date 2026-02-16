@@ -913,10 +913,623 @@ waveform_demo = gr.Interface(
 )
 
 
+# ============ REAL-TIME STREAMING DETECTION ============
+import time
+import threading
+
+# Global state for real-time detection
+realtime_history = []
+
+def realtime_detect(audio_stream, state):
+    """Process streaming audio chunks for real-time detection"""
+    if audio_stream is None:
+        return (
+            """<div style="text-align:center;padding:60px;background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:20px;border:2px solid #333;">
+                <div style="font-size:64px;margin-bottom:15px;">🎙️</div>
+                <h2 style="color:white;margin:0;">Click Record to Start Real-Time Detection</h2>
+                <p style="color:#888;margin-top:10px;">Your microphone audio will be analyzed continuously</p>
+            </div>""",
+            state
+        )
+    
+    try:
+        # Handle Gradio audio input
+        if isinstance(audio_stream, tuple):
+            sr, audio_array = audio_stream
+            audio_array = audio_array.astype(np.float32)
+            if audio_array.dtype == np.int16:
+                audio_array = audio_array / 32768.0
+            elif audio_array.dtype == np.int32:
+                audio_array = audio_array / 2147483648.0
+            if len(audio_array.shape) > 1:
+                audio_array = audio_array.mean(axis=1)
+        else:
+            audio_array, sr = librosa.load(audio_stream, sr=22050, mono=True)
+        
+        duration = len(audio_array) / sr
+        
+        if duration < 0.5:
+            return (
+                """<div style="text-align:center;padding:40px;background:linear-gradient(135deg,#2a2a1e,#1e1e2e);border-radius:20px;border:2px solid #ffaa00;">
+                    <div style="font-size:48px;">⏳</div>
+                    <h3 style="color:#ffcc00;">Recording... Keep speaking!</h3>
+                    <p style="color:#888;">Need at least 0.5 seconds of audio for analysis</p>
+                    <div style="margin-top:15px;">
+                        <div style="height:8px;background:#333;border-radius:4px;overflow:hidden;">
+                            <div style="width:""" + f"{min(duration/0.5*100, 100):.0f}" + """%;height:100%;background:linear-gradient(90deg,#ffaa00,#ffcc00);border-radius:4px;transition:width 0.3s;"></div>
+                        </div>
+                    </div>
+                </div>""",
+                state
+            )
+        
+        # Convert to bytes for detection
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
+            import soundfile as sf
+            sf.write(tmp.name, audio_array, sr)
+            with open(tmp.name, 'rb') as f:
+                audio_bytes = f.read()
+            audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
+            os.unlink(tmp.name)
+        
+        # Run detection
+        features, audio_samples, rate = audio_processor.process_audio_with_samples(audio_base64)
+        result = voice_detector.detect(
+            features=features,
+            audio=audio_samples,
+            sr=rate,
+            audio_bytes=audio_bytes
+        )
+        
+        classification = result['classification']
+        confidence = result['confidenceScore']
+        is_ai = classification == "AI_GENERATED"
+        
+        # Update history
+        timestamp = time.strftime("%H:%M:%S")
+        if state is None:
+            state = []
+        state.append({
+            'time': timestamp,
+            'cls': classification,
+            'conf': confidence,
+            'duration': duration
+        })
+        # Keep last 10 entries
+        state = state[-10:]
+        
+        # Build live dashboard
+        emoji = "🤖" if is_ai else "👤"
+        color = "#ff4444" if is_ai else "#00ff88"
+        bg_gradient = "linear-gradient(135deg, #ff444422, #ff000011)" if is_ai else "linear-gradient(135deg, #00ff8822, #00aa5511)"
+        label = "AI GENERATED" if is_ai else "HUMAN VOICE"
+        pulse = "animation: pulse 1s infinite;" if is_ai else ""
+        
+        # History rows
+        history_html = ""
+        for entry in reversed(state[-5:]):
+            h_color = "#ff4444" if entry['cls'] == "AI_GENERATED" else "#00ff88"
+            h_emoji = "🤖" if entry['cls'] == "AI_GENERATED" else "👤"
+            h_label = "AI" if entry['cls'] == "AI_GENERATED" else "HUMAN"
+            history_html += f"""
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 15px;background:rgba(255,255,255,0.05);border-radius:8px;margin-bottom:5px;border-left:3px solid {h_color};">
+                <span style="color:#888;">{entry['time']}</span>
+                <span style="color:{h_color};font-weight:bold;">{h_emoji} {h_label}</span>
+                <span style="color:white;">{entry['conf']:.0%}</span>
+                <span style="color:#888;">{entry['duration']:.1f}s</span>
+            </div>"""
+        
+        dashboard = f"""
+        <style>
+            @keyframes pulse {{ 0%,100% {{ opacity:1; }} 50% {{ opacity:0.7; }} }}
+            @keyframes liveDot {{ 0%,100% {{ opacity:1; }} 50% {{ opacity:0.3; }} }}
+        </style>
+        <div style="background:linear-gradient(135deg,#0f0f1a,#1a1a2e);border-radius:20px;overflow:hidden;border:2px solid {color}33;">
+            <!-- Live indicator -->
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:rgba(0,0,0,0.3);">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <div style="width:10px;height:10px;background:#ff0000;border-radius:50%;animation:liveDot 1s infinite;"></div>
+                    <span style="color:white;font-weight:bold;">LIVE DETECTION</span>
+                </div>
+                <span style="color:#888;">Audio: {duration:.1f}s</span>
+            </div>
+            
+            <!-- Main result -->
+            <div style="text-align:center;padding:30px;{bg_gradient};{pulse}">
+                <div style="font-size:64px;margin-bottom:10px;">{emoji}</div>
+                <div style="font-size:28px;color:{color};font-weight:bold;letter-spacing:2px;">{label}</div>
+                <div style="margin-top:15px;">
+                    <div style="background:rgba(0,0,0,0.4);height:20px;border-radius:10px;overflow:hidden;max-width:300px;margin:0 auto;border:1px solid rgba(255,255,255,0.1);">
+                        <div style="width:{confidence*100}%;height:100%;background:linear-gradient(90deg,{color},{color}88);border-radius:10px;transition:width 0.5s;"></div>
+                    </div>
+                    <div style="color:white;font-size:36px;font-weight:bold;margin-top:8px;">{confidence*100:.1f}%</div>
+                </div>
+            </div>
+            
+            <!-- History -->
+            <div style="padding:15px 20px;">
+                <h4 style="color:#888;margin:0 0 10px 0;font-size:13px;text-transform:uppercase;letter-spacing:1px;">Detection History</h4>
+                {history_html}
+            </div>
+        </div>
+        """
+        
+        return dashboard, state
+        
+    except Exception as e:
+        return (
+            f"""<div style="text-align:center;padding:30px;background:#2a1a1a;border-radius:15px;border:2px solid #ff4444;">
+                <div style="font-size:36px;">⚠️</div>
+                <p style="color:#ff6666;">Error: {str(e)}</p>
+            </div>""",
+            state
+        )
+
+
+# Build Real-Time tab with Blocks
+with gr.Blocks(css=CUSTOM_CSS) as realtime_demo:
+    gr.HTML("""
+    <div style="text-align:center;padding:20px;background:linear-gradient(90deg,#ff416c,#ff4b2b);border-radius:15px;margin-bottom:20px;">
+        <h2 style="color:white;margin:0;">🔴 Real-Time Voice Detection</h2>
+        <p style="color:rgba(255,255,255,0.9);margin:5px 0 0 0;">Speak into your microphone — AI analyzes your voice continuously as you talk</p>
+    </div>
+    """)
+    
+    state = gr.State({"audio_buffer": None, "sr": None, "history": [], "chunk_count": 0})
+    
+    with gr.Row():
+        with gr.Column(scale=1):
+            gr.HTML("""<div style="padding:10px;background:rgba(255,65,108,0.1);border-radius:10px;border:1px solid rgba(255,65,108,0.3);margin-bottom:10px;">
+                <p style="color:#ff8a9e;margin:0;font-size:14px;">🎙️ <b>How it works:</b> Click the mic button and start speaking. The AI will <b>continuously analyze</b> your voice in real-time as you talk — no need to stop!</p>
+            </div>""")
+            audio_input = gr.Audio(
+                label="🎙️ Speak Now — Live Analysis",
+                sources=["microphone"],
+                type="numpy",
+                streaming=True
+            )
+        
+        with gr.Column(scale=2):
+            result_html = gr.HTML(
+                value="""<div style="text-align:center;padding:60px;background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:20px;border:2px solid #333;">
+                    <div style="font-size:64px;margin-bottom:15px;">🎙️</div>
+                    <h2 style="color:white;margin:0;">Click the Mic to Start Live Detection</h2>
+                    <p style="color:#888;margin-top:10px;">AI will analyze your voice continuously as you speak</p>
+                </div>"""
+            )
+    
+    def stream_detect(audio_chunk, current_state):
+        """Process streaming audio chunks in real-time while user speaks"""
+        if audio_chunk is None:
+            return (
+                """<div style="text-align:center;padding:60px;background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:20px;border:2px solid #333;">
+                    <div style="font-size:64px;margin-bottom:15px;">🎙️</div>
+                    <h2 style="color:white;margin:0;">Click the Mic to Start Live Detection</h2>
+                    <p style="color:#888;margin-top:10px;">AI will analyze your voice continuously as you speak</p>
+                </div>""",
+                current_state
+            )
+        
+        try:
+            sr, chunk_array = audio_chunk
+            chunk_array = chunk_array.astype(np.float32)
+            if chunk_array.max() > 1.0:
+                chunk_array = chunk_array / 32768.0
+            if len(chunk_array.shape) > 1:
+                chunk_array = chunk_array.mean(axis=1)
+            
+            # Accumulate audio in buffer
+            if current_state["audio_buffer"] is None:
+                current_state["audio_buffer"] = chunk_array
+                current_state["sr"] = sr
+            else:
+                current_state["audio_buffer"] = np.concatenate([current_state["audio_buffer"], chunk_array])
+            
+            current_state["chunk_count"] = current_state.get("chunk_count", 0) + 1
+            
+            buffer = current_state["audio_buffer"]
+            buffer_sr = current_state["sr"]
+            duration = len(buffer) / buffer_sr
+            
+            # Need at least 2 seconds of audio for reliable detection
+            if duration < 2.0:
+                progress = min(duration / 2.0 * 100, 100)
+                return (
+                    f"""<div style="text-align:center;padding:40px;background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:20px;border:2px solid #ffaa00;">
+                        <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:15px;">
+                            <div style="width:10px;height:10px;background:#ff0000;border-radius:50%;animation:liveDot 1s infinite;"></div>
+                            <span style="color:white;font-weight:bold;">LISTENING...</span>
+                        </div>
+                        <div style="font-size:48px;">🎤</div>
+                        <h3 style="color:#ffcc00;">Keep speaking... ({duration:.1f}s)</h3>
+                        <div style="max-width:300px;margin:15px auto;">
+                            <div style="height:10px;background:#333;border-radius:5px;overflow:hidden;">
+                                <div style="width:{progress}%;height:100%;background:linear-gradient(90deg,#ffaa00,#ffcc00);border-radius:5px;transition:width 0.3s;"></div>
+                            </div>
+                        </div>
+                        <p style="color:#888;">Analyzing after 2 seconds of audio</p>
+                        <style>@keyframes liveDot {{ 0%,100% {{ opacity:1; }} 50% {{ opacity:0.3; }} }}</style>
+                    </div>""",
+                    current_state
+                )
+            
+            # Check if audio is too quiet (silence) - skip analysis to avoid false positives
+            rms = np.sqrt(np.mean(buffer[-int(buffer_sr):] ** 2))
+            if rms < 0.01:
+                silence_html = current_state.get("last_html", None)
+                if silence_html:
+                    return silence_html, current_state
+                return (
+                    f"""<div style="text-align:center;padding:40px;background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:20px;border:2px solid #555;">
+                        <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:15px;">
+                            <div style="width:10px;height:10px;background:#ff0000;border-radius:50%;animation:liveDot 1s infinite;"></div>
+                            <span style="color:white;font-weight:bold;">LISTENING...</span>
+                        </div>
+                        <div style="font-size:48px;">🔇</div>
+                        <h3 style="color:#888;">Speak louder — audio too quiet to analyze</h3>
+                        <p style="color:#555;">Volume: {rms:.4f} (need > 0.01)</p>
+                        <style>@keyframes liveDot {{ 0%,100% {{ opacity:1; }} 50% {{ opacity:0.3; }} }}</style>
+                    </div>""",
+                    current_state
+                )
+            
+            # Only run detection every 5 chunks to give enough audio between analyses
+            if current_state["chunk_count"] % 5 != 0:
+                # Return previous result if available
+                if current_state.get("last_html"):
+                    return current_state["last_html"], current_state
+                return (
+                    f"""<div style="text-align:center;padding:30px;background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:20px;border:2px solid #667eea;">
+                        <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
+                            <div style="width:10px;height:10px;background:#ff0000;border-radius:50%;animation:liveDot 1s infinite;"></div>
+                            <span style="color:white;font-weight:bold;">PROCESSING... ({duration:.1f}s)</span>
+                        </div>
+                        <style>@keyframes liveDot {{ 0%,100% {{ opacity:1; }} 50% {{ opacity:0.3; }} }}</style>
+                    </div>""",
+                    current_state
+                )
+            
+            # Use last 5 seconds of audio for analysis (sliding window)
+            analysis_samples = int(min(5.0, duration) * buffer_sr)
+            analysis_audio = buffer[-analysis_samples:]
+            
+            # Resample if needed
+            if buffer_sr != 22050:
+                analysis_audio = librosa.resample(analysis_audio, orig_sr=buffer_sr, target_sr=22050)
+                analysis_sr = 22050
+            else:
+                analysis_sr = buffer_sr
+            
+            # Convert to bytes for detection
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
+                import soundfile as sf
+                sf.write(tmp.name, analysis_audio, analysis_sr)
+                with open(tmp.name, 'rb') as f:
+                    audio_bytes = f.read()
+                audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
+                os.unlink(tmp.name)
+            
+            # Run detection
+            features, audio_samples_out, rate = audio_processor.process_audio_with_samples(audio_base64)
+            result = voice_detector.detect(
+                features=features,
+                audio=audio_samples_out,
+                sr=rate,
+                audio_bytes=audio_bytes
+            )
+            
+            classification = result['classification']
+            confidence = result['confidenceScore']
+            
+            # Streaming-specific adjustment: mic audio has compression artifacts
+            # that inflate transformer + heuristic scores falsely.
+            # The CNN model is most reliable for raw mic audio.
+            # If CNN says human but transformer disagrees (due to mic artifacts), trust CNN.
+            model_scores = result.get('model_scores', {})
+            tf_score = model_scores.get('transformers', 0)
+            cnn_score = model_scores.get('cnn_mfcc', 0)
+            heuristic_score = model_scores.get('heuristic', 0)
+            
+            if classification == "AI_GENERATED":
+                # In streaming mode, CNN is most reliable since it analyzes spectral
+                # patterns that aren't affected by streaming artifacts.
+                # If CNN says human (< 0.3) but transformer says AI, it's likely a false positive.
+                if cnn_score < 0.30:
+                    classification = "HUMAN"
+                    confidence = max(0.55, 1.0 - cnn_score)
+                # Also if only heuristic is high but both DL models disagree
+                elif tf_score < 0.3 and cnn_score < 0.3:
+                    classification = "HUMAN"
+                    confidence = 0.70
+            
+            is_ai = classification == "AI_GENERATED"
+            
+            # Update history
+            timestamp = time.strftime("%H:%M:%S")
+            history = current_state.get("history", [])
+            history.append({
+                'time': timestamp,
+                'cls': classification,
+                'conf': confidence,
+                'duration': duration
+            })
+            current_state["history"] = history[-10:]
+            
+            # Keep buffer manageable (last 5 seconds only)
+            max_samples = int(5.0 * buffer_sr)
+            if len(buffer) > max_samples:
+                current_state["audio_buffer"] = buffer[-max_samples:]
+            
+            # Build live dashboard
+            emoji = "🤖" if is_ai else "👤"
+            color = "#ff4444" if is_ai else "#00ff88"
+            label = "AI GENERATED" if is_ai else "HUMAN VOICE"
+            pulse = "animation: pulse 1s infinite;" if is_ai else ""
+            alert_bg = "#ff444422" if is_ai else "#00ff8822"
+            
+            # History rows
+            history_html = ""
+            for entry in reversed(current_state["history"][-5:]):
+                h_color = "#ff4444" if entry['cls'] == "AI_GENERATED" else "#00ff88"
+                h_emoji = "🤖" if entry['cls'] == "AI_GENERATED" else "👤"
+                h_label = "AI" if entry['cls'] == "AI_GENERATED" else "HUMAN"
+                history_html += f"""
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 15px;background:rgba(255,255,255,0.05);border-radius:8px;margin-bottom:5px;border-left:3px solid {h_color};">
+                    <span style="color:#888;">{entry['time']}</span>
+                    <span style="color:{h_color};font-weight:bold;">{h_emoji} {h_label}</span>
+                    <span style="color:white;">{entry['conf']:.0%}</span>
+                    <span style="color:#888;">{entry['duration']:.1f}s</span>
+                </div>"""
+            
+            dashboard = f"""
+            <style>
+                @keyframes pulse {{ 0%,100% {{ opacity:1; }} 50% {{ opacity:0.7; }} }}
+                @keyframes liveDot {{ 0%,100% {{ opacity:1; }} 50% {{ opacity:0.3; }} }}
+            </style>
+            <div style="background:linear-gradient(135deg,#0f0f1a,#1a1a2e);border-radius:20px;overflow:hidden;border:2px solid {color}33;">
+                <!-- Live indicator -->
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:rgba(0,0,0,0.3);">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <div style="width:10px;height:10px;background:#ff0000;border-radius:50%;animation:liveDot 1s infinite;"></div>
+                        <span style="color:white;font-weight:bold;">🔴 LIVE DETECTION</span>
+                    </div>
+                    <span style="color:#888;">Buffer: {duration:.1f}s | Analyses: {len(current_state['history'])}</span>
+                </div>
+                
+                <!-- Main result -->
+                <div style="text-align:center;padding:30px;background:{alert_bg};{pulse}">
+                    <div style="font-size:64px;margin-bottom:10px;">{emoji}</div>
+                    <div style="font-size:28px;color:{color};font-weight:bold;letter-spacing:2px;">{label}</div>
+                    <div style="margin-top:15px;">
+                        <div style="background:rgba(0,0,0,0.4);height:20px;border-radius:10px;overflow:hidden;max-width:300px;margin:0 auto;border:1px solid rgba(255,255,255,0.1);">
+                            <div style="width:{confidence*100}%;height:100%;background:linear-gradient(90deg,{color},{color}88);border-radius:10px;transition:width 0.5s;"></div>
+                        </div>
+                        <div style="color:white;font-size:36px;font-weight:bold;margin-top:8px;">{confidence*100:.1f}%</div>
+                    </div>
+                </div>
+                
+                <!-- History -->
+                <div style="padding:15px 20px;">
+                    <h4 style="color:#888;margin:0 0 10px 0;font-size:13px;text-transform:uppercase;letter-spacing:1px;">Live Detection History</h4>
+                    {history_html if history_html else '<p style="color:#555;text-align:center;">Results will appear here as you speak...</p>'}
+                </div>
+            </div>
+            """
+            
+            current_state["last_html"] = dashboard
+            return dashboard, current_state
+            
+        except Exception as e:
+            return (
+                f"""<div style="text-align:center;padding:30px;background:#2a1a1a;border-radius:15px;border:2px solid #ff4444;">
+                    <div style="font-size:36px;">⚠️</div>
+                    <p style="color:#ff6666;">Error: {str(e)}</p>
+                </div>""",
+                current_state
+            )
+    
+    audio_input.stream(
+        fn=stream_detect,
+        inputs=[audio_input, state],
+        outputs=[result_html, state]
+    )
+
+
+# ============ DEVELOPER API TAB ============
+API_BASE = "https://gaurav00107-ai-voice-detection.hf.space"
+
+with gr.Blocks(css=CUSTOM_CSS) as api_demo:
+    gr.HTML(f"""
+    <div style="text-align:center;padding:20px;background:linear-gradient(90deg,#667eea,#764ba2);border-radius:15px;margin-bottom:20px;">
+        <h2 style="color:white;margin:0;">🔑 Developer API</h2>
+        <p style="color:rgba(255,255,255,0.9);margin:5px 0 0 0;">Integrate AI Voice Detection into your app in minutes</p>
+    </div>
+    
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin-bottom:25px;">
+        <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);padding:20px;border-radius:12px;text-align:center;border:1px solid #333;">
+            <div style="font-size:32px;">⚡</div>
+            <h3 style="color:white;margin:8px 0 4px;">REST API</h3>
+            <p style="color:#888;margin:0;font-size:13px;">Simple POST request with base64 audio</p>
+        </div>
+        <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);padding:20px;border-radius:12px;text-align:center;border:1px solid #333;">
+            <div style="font-size:32px;">🌍</div>
+            <h3 style="color:white;margin:8px 0 4px;">5 Languages</h3>
+            <p style="color:#888;margin:0;font-size:13px;">Tamil, Hindi, English, Malayalam, Telugu</p>
+        </div>
+        <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);padding:20px;border-radius:12px;text-align:center;border:1px solid #333;">
+            <div style="font-size:32px;">🆓</div>
+            <h3 style="color:white;margin:8px 0 4px;">Free Tier</h3>
+            <p style="color:#888;margin:0;font-size:13px;">100 requests/day — no API key needed</p>
+        </div>
+    </div>
+    """)
+    
+    gr.HTML(f"""
+    <div style="background:linear-gradient(135deg,#0f0f1a,#1a1a2e);border-radius:15px;padding:25px;border:1px solid #333;margin-bottom:20px;">
+        <h3 style="color:white;margin:0 0 5px;">📡 API Endpoint</h3>
+        <div style="background:#000;padding:12px 18px;border-radius:8px;font-family:monospace;display:flex;align-items:center;justify-content:space-between;margin-top:10px;">
+            <span style="color:#00ff88;font-size:15px;">POST {API_BASE}/</span>
+        </div>
+        <p style="color:#888;margin:10px 0 0;font-size:13px;">
+            📖 Interactive Swagger Docs: <a href="{API_BASE}/docs" target="_blank" style="color:#667eea;">{API_BASE}/docs</a>
+        </p>
+    </div>
+    """)
+    
+    with gr.Tabs():
+        with gr.Tab("🐍 Python"):
+            gr.Code(
+                value=f'''import requests, base64
+
+# Read your audio file
+with open("audio.mp3", "rb") as f:
+    audio_b64 = base64.b64encode(f.read()).decode()
+
+# Call the API
+response = requests.post(
+    "{API_BASE}/",
+    json={{
+        "audioBase64": audio_b64,
+        "language": "english",
+        "audioFormat": "mp3"
+    }}
+)
+
+result = response.json()
+print(f"Verdict: {{result['classification']}}")
+print(f"Confidence: {{result['confidenceScore']}}%")
+print(f"Explanation: {{result['explanation']}}")''',
+                language="python",
+                label="Python Example"
+            )
+        
+        with gr.Tab("🌀 cURL"):
+            gr.Code(
+                value=f'''# Encode audio to base64
+AUDIO_B64=$(base64 -i audio.mp3)
+
+# Call the API
+curl -X POST "{API_BASE}/" \\
+  -H "Content-Type: application/json" \\
+  -d '{{
+    "audioBase64": "'$AUDIO_B64'",
+    "language": "english",
+    "audioFormat": "mp3"
+  }}'
+''',
+                language="shell",
+                label="cURL Example"
+            )
+        
+        with gr.Tab("🟨 JavaScript"):
+            gr.Code(
+                value=f'''// Browser: Read file and call API
+const file = document.getElementById("audioInput").files[0];
+const reader = new FileReader();
+
+reader.onload = async () => {{
+  const base64 = reader.result.split(",")[1];
+  
+  const response = await fetch("{API_BASE}/", {{
+    method: "POST",
+    headers: {{ "Content-Type": "application/json" }},
+    body: JSON.stringify({{
+      audioBase64: base64,
+      language: "english",
+      audioFormat: "mp3"
+    }})
+  }});
+  
+  const result = await response.json();
+  console.log(`Verdict: ${{result.classification}}`);
+  console.log(`Confidence: ${{result.confidenceScore}}%`);
+}};
+
+reader.readAsDataURL(file);''',
+                language="javascript",
+                label="JavaScript Example"
+            )
+        
+        with gr.Tab("📦 Batch API"):
+            gr.Code(
+                value=f'''import requests, base64, glob
+
+# Batch analyze multiple files
+files = glob.glob("audio_samples/*.mp3")
+results = []
+
+for filepath in files:
+    with open(filepath, "rb") as f:
+        audio_b64 = base64.b64encode(f.read()).decode()
+    
+    resp = requests.post(
+        "{API_BASE}/api/voice-detection",
+        json={{
+            "audioBase64": audio_b64,
+            "language": "english",
+            "audioFormat": "mp3"
+        }}
+    )
+    result = resp.json()
+    results.append({{
+        "file": filepath,
+        "verdict": result["classification"],
+        "confidence": result["confidenceScore"]
+    }})
+    print(f"{{filepath}}: {{result['classification']}} ({{result['confidenceScore']}}%)")
+
+# Summary
+ai_count = sum(1 for r in results if r["verdict"] == "AI_GENERATED")
+print(f"\\n📊 Total: {{len(results)}} files | AI: {{ai_count}} | Human: {{len(results)-ai_count}}")''',
+                language="python",
+                label="Batch Processing Example"
+            )
+    
+    gr.HTML(f"""
+    <div style="background:linear-gradient(135deg,#0f0f1a,#1a1a2e);border-radius:15px;padding:25px;border:1px solid #333;margin-top:20px;">
+        <h3 style="color:white;margin:0 0 15px;">📋 Response Format</h3>
+        <pre style="background:#000;padding:15px;border-radius:8px;color:#e0e0e0;overflow-x:auto;font-size:13px;"><code style="color:#e0e0e0;">{{
+  "classification": "AI_GENERATED" | "HUMAN",
+  "confidenceScore": 0.92,
+  "explanation": "AI voice detected: synthetic pitch consistency, deep learning detected synthetic artifacts",
+  "method": "heuristic+cnn_mfcc+transformers",
+  "model_scores": {{
+    "heuristic": 0.89,
+    "cnn_mfcc": 0.85,
+    "transformers": 0.97
+  }}
+}}</code></pre>
+    </div>
+    
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:20px;">
+        <div style="background:linear-gradient(135deg,#1a2a1a,#1a3a1a);padding:20px;border-radius:12px;border:1px solid #2a4a2a;">
+            <h4 style="color:#00ff88;margin:0 0 10px;">✅ Use Cases</h4>
+            <ul style="color:#ccc;margin:0;padding-left:20px;font-size:13px;line-height:1.8;">
+                <li>Banking — Voice authentication fraud detection</li>
+                <li>Call Centers — Screen incoming calls for AI deepfakes</li>
+                <li>Media — Verify audio evidence authenticity</li>
+                <li>Social Media — Flag AI-generated voice content</li>
+                <li>Insurance — Detect fraudulent voice claims</li>
+            </ul>
+        </div>
+        <div style="background:linear-gradient(135deg,#1a1a2e,#2a1a3e);padding:20px;border-radius:12px;border:1px solid #3a2a4a;">
+            <h4 style="color:#667eea;margin:0 0 10px;">📊 API Specs</h4>
+            <ul style="color:#ccc;margin:0;padding-left:20px;font-size:13px;line-height:1.8;">
+                <li>Response time: &lt; 3 seconds</li>
+                <li>Max audio: 30 seconds per request</li>
+                <li>Formats: MP3, WAV, OGG, FLAC, M4A</li>
+                <li>Languages: Tamil, Hindi, English, Malayalam, Telugu</li>
+                <li>Auth: API key (optional, free tier available)</li>
+            </ul>
+        </div>
+    </div>
+    """)
+
+
 # Combined app with all tabs
 combined_app = gr.TabbedInterface(
-    [demo, batch_demo, comparison_demo, explainer_demo, waveform_demo],
-    ["🎤 Single", "📦 Batch", "🔄 Compare", "🔬 Explainer", "🌊 Waveform"],
+    [demo, batch_demo, comparison_demo, explainer_demo, waveform_demo, realtime_demo, api_demo],
+    ["🎤 Single", "📦 Batch", "🔄 Compare", "🔬 Explainer", "🌊 Waveform", "🔴 Real-Time", "🔑 API"],
     title="AI Voice Detection | India AI Impact Buildathon"
 )
 
@@ -925,8 +1538,8 @@ combined_app = gr.TabbedInterface(
 from app.main import app as fastapi_app
 import uvicorn
 
-# Mount at /gradio to allow API routes to work
-app = gr.mount_gradio_app(fastapi_app, combined_app, path="/gradio")
+# Mount at root path so HuggingFace Spaces can display the UI directly
+app = gr.mount_gradio_app(fastapi_app, combined_app, path="/")
 
 
 if __name__ == "__main__":

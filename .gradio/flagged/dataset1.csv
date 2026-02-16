@@ -1,0 +1,13 @@
+📁 Upload Multiple Audio Files,Language,Results,timestamp
+"["".gradio/flagged/ Upload Multiple Audio Files/1a273816b190a52e90ef/tamil_human_short.wav"", "".gradio/flagged/ Upload Multiple Audio Files/a5a979f98d3bf3a58abc/tamil_human_2.wav"", "".gradio/flagged/ Upload Multiple Audio Files/b17e333db25885475ac3/tamil_human_1.wav""]",Tamil,"'
+    <div style='background:rgba(102,126,234,0.2);padding:15px;border-radius:10px;margin-bottom:15px;text-align:center;'>
+        <h3 style='color:#667eea;margin:0;'>📊 Batch Results</h3>
+        <p style='margin:10px 0;'>🤖 AI: <b>0</b> | 👤 Human: <b>3</b> | Total: <b>3</b></p>
+    </div>
+    <div style='background:rgba(255,255,255,0.05);padding:10px;margin:5px 0;border-radius:8px;border-left:3px solid #44ff88;'><b>👤 tamil_human_short.wav</b> → <span style='color:#44ff88;'>HUMAN</span> (74%)</div><div style='background:rgba(255,255,255,0.05);padding:10px;margin:5px 0;border-radius:8px;border-left:3px solid #44ff88;'><b>👤 tamil_human_2.wav</b> → <span style='color:#44ff88;'>HUMAN</span> (77%)</div><div style='background:rgba(255,255,255,0.05);padding:10px;margin:5px 0;border-radius:8px;border-left:3px solid #44ff88;'><b>👤 tamil_human_1.wav</b> → <span style='color:#44ff88;'>HUMAN</span> (73%)</div>",2026-02-09 16:17:42.613640
+"["".gradio/flagged/ Upload Multiple Audio Files/8c053dd5767744ee9027/tamil_human_short.wav"", "".gradio/flagged/ Upload Multiple Audio Files/651ae785a84f983b8258/tamil_human_2.wav"", "".gradio/flagged/ Upload Multiple Audio Files/5dac5ca95c38b941b12d/tamil_human_1.wav""]",Tamil,"'
+    <div style='background:rgba(102,126,234,0.2);padding:15px;border-radius:10px;margin-bottom:15px;text-align:center;'>
+        <h3 style='color:#667eea;margin:0;'>📊 Batch Results</h3>
+        <p style='margin:10px 0;'>🤖 AI: <b>0</b> | 👤 Human: <b>3</b> | Total: <b>3</b></p>
+    </div>
+    <div style='background:rgba(255,255,255,0.05);padding:10px;margin:5px 0;border-radius:8px;border-left:3px solid #44ff88;'><b>👤 tamil_human_short.wav</b> → <span style='color:#44ff88;'>HUMAN</span> (74%)</div><div style='background:rgba(255,255,255,0.05);padding:10px;margin:5px 0;border-radius:8px;border-left:3px solid #44ff88;'><b>👤 tamil_human_2.wav</b> → <span style='color:#44ff88;'>HUMAN</span> (77%)</div><div style='background:rgba(255,255,255,0.05);padding:10px;margin:5px 0;border-radius:8px;border-left:3px solid #44ff88;'><b>👤 tamil_human_1.wav</b> → <span style='color:#44ff88;'>HUMAN</span> (73%)</div>",2026-02-09 16:17:44.593941

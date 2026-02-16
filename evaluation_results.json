@@ -1,0 +1,50 @@
+{
+  "finalScore": 80,
+  "results": [
+    {
+      "file": "Hackathon final Samples/English_voice_AI_GENERATED.mp3",
+      "expected": "AI_GENERATED",
+      "actual": "AI_GENERATED",
+      "confidence": 0.65,
+      "correct": true,
+      "score": 15.0,
+      "time": 16.3
+    },
+    {
+      "file": "Hackathon final Samples/Hindi_Voice_HUMAN.mp3",
+      "expected": "HUMAN",
+      "actual": "HUMAN",
+      "confidence": 0.74,
+      "correct": true,
+      "score": 15.0,
+      "time": 4.17
+    },
+    {
+      "file": "Hackathon final Samples/Malayalam_AI_GENERATED.mp3",
+      "expected": "AI_GENERATED",
+      "actual": "AI_GENERATED",
+      "confidence": 0.83,
+      "correct": true,
+      "score": 20.0,
+      "time": 8.93
+    },
+    {
+      "file": "Hackathon final Samples/TAMIL_VOICE__HUMAN.mp3",
+      "expected": "HUMAN",
+      "actual": "HUMAN",
+      "confidence": 0.7,
+      "correct": true,
+      "score": 15.0,
+      "time": 20.59
+    },
+    {
+      "file": "Hackathon final Samples/Telugu_Voice_AI_GENERATED.mp3",
+      "expected": "AI_GENERATED",
+      "actual": "AI_GENERATED",
+      "confidence": 0.79,
+      "correct": true,
+      "score": 15.0,
+      "time": 11.0
+    }
+  ]
+}

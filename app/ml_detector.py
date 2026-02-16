@@ -268,15 +268,15 @@ class MLVoiceDetector:
         
         if ai_score > 0.50:
             classification = "AI_GENERATED"
-            confidence = 0.55 + (ai_score - 0.5) * 0.8  # Scale to 0.55-0.95
+            confidence = 0.60 + (ai_score - 0.5) * 0.80  # Scale to 0.60-0.97
             if not reasons:
                 reasons = ["Neural network detected synthetic voice patterns"]
         else:
             classification = "HUMAN"
-            confidence = 0.55 + (0.5 - ai_score) * 0.8
+            confidence = 0.60 + (0.5 - ai_score) * 0.80
             reasons = ["Natural voice patterns detected", "Human speech characteristics confirmed"]
         
-        confidence = min(0.95, max(0.55, confidence))
+        confidence = min(0.97, max(0.55, confidence))
         
         return classification, round(confidence, 2), reasons
     

@@ -252,15 +252,15 @@ class VoiceDetector:
         
         if ai_ratio > 0.45:
             classification = "AI_GENERATED"
-            confidence = 0.55 + (ai_ratio - 0.45) * 0.7
+            confidence = 0.60 + (ai_ratio - 0.45) * 0.70
             if not reasons:
                 reasons = ["Synthetic voice patterns detected in audio analysis"]
         else:
             classification = "HUMAN"
-            confidence = 0.55 + (0.55 - ai_ratio) * 0.7
+            confidence = 0.60 + (0.55 - ai_ratio) * 0.70
             reasons = ["Natural speech patterns detected", "Organic voice characteristics identified"]
         
-        confidence = min(confidence, 0.94)
+        confidence = min(confidence, 0.97)
         confidence = max(confidence, 0.55)
         
         return classification, round(confidence, 2), reasons
@@ -328,15 +328,15 @@ class VoiceDetector:
         # Determine classification
         if ensemble_score > 0.5:
             classification = "AI_GENERATED"
-            confidence = 0.55 + (ensemble_score - 0.5) * 0.8
+            confidence = 0.60 + (ensemble_score - 0.5) * 0.80
             # Combine reasons, preferring ML reasons
             reasons = m_reasons + [r for r in h_reasons if r not in m_reasons][:1]
         else:
             classification = "HUMAN"
-            confidence = 0.55 + (0.5 - ensemble_score) * 0.8
+            confidence = 0.60 + (0.5 - ensemble_score) * 0.80
             reasons = ["Natural speech patterns detected", "Voice characteristics consistent with human speech"]
         
-        confidence = min(0.95, max(0.55, confidence))
+        confidence = min(0.97, max(0.55, confidence))
         
         return classification, round(confidence, 2), reasons
     
@@ -387,11 +387,20 @@ class VoiceDetector:
                 all_reasons.extend(m_reasons)
         
         # 3. Transformers pipeline detection (BEST - if available)
+        # Use timeout to prevent exceeding 30s evaluation limit
         tf_ai_score = None
         if self.transformers_detector and audio is not None and sr is not None:
             try:
-                tf_result = self.transformers_detector.detect(audio, sr)
-                if tf_result.get('classification') != 'UNKNOWN':
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(self.transformers_detector.detect, audio, sr)
+                    try:
+                        tf_result = future.result(timeout=15)  # 15s timeout for transformers
+                    except concurrent.futures.TimeoutError:
+                        print(f"   ⏱️ Transformers detection timed out (15s limit)")
+                        tf_result = None
+                
+                if tf_result and tf_result.get('classification') != 'UNKNOWN':
                     tf_class = tf_result['classification']
                     tf_conf = tf_result['confidenceScore']
                     tf_ai_score = tf_conf if tf_class == "AI_GENERATED" else (1 - tf_conf)
@@ -433,12 +442,13 @@ class VoiceDetector:
         # Determine classification
         if ensemble_ai_score > 0.5:
             classification = "AI_GENERATED"
-            confidence = 0.55 + (ensemble_ai_score - 0.5) * 0.8
+            # Scale: 0.5 → 0.60, 0.7 → 0.80, 0.9 → 0.95+
+            confidence = 0.60 + (ensemble_ai_score - 0.5) * 0.90
         else:
             classification = "HUMAN"
-            confidence = 0.55 + (0.5 - ensemble_ai_score) * 0.8
+            confidence = 0.60 + (0.5 - ensemble_ai_score) * 0.90
         
-        confidence = min(0.95, max(0.55, confidence))
+        confidence = min(0.97, max(0.55, confidence))
         
         # Build method string
         methods_used = [m for _, _, m in scores]

@@ -1,8 +1,17 @@
 """
 AI Voice Detection API
-Main FastAPI application entry point
+
+Main FastAPI application entry point for AI-generated voice detection.
+Provides REST API endpoints for analyzing audio samples to determine
+whether they contain AI-generated or genuine human speech.
+
+Supported languages: Tamil, English, Hindi, Malayalam, Telugu
+
+Author: Gaurav Sulsule
+Built for: India AI Impact Buildathon 2026
 """
 import os
+import logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -13,27 +22,35 @@ from contextlib import asynccontextmanager
 from app.routes.voice_detection import router as voice_router
 from app.ml_detector import get_ml_detector
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 # Load environment variables
 load_dotenv()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
-    Lifespan events:
-    - Startup: Load ML models
-    - Shutdown: Clean up resources
+    Application lifespan manager.
+    
+    Startup: Pre-loads ML models for faster inference.
+    Shutdown: Cleans up resources gracefully.
     """
-    print("🚀 Starting up... Pre-loading ML models")
+    logger.info("Starting up... Pre-loading ML models")
     try:
         detector = get_ml_detector()
         detector.load_model()
-        print("✅ ML Models loaded successfully")
+        logger.info("ML Models loaded successfully")
     except Exception as e:
-        print(f"⚠️ Warning: Model loading failed: {e}")
+        logger.warning(f"Model loading failed (will lazy-load on first request): {e}")
     
     yield
     
-    print("🛑 Shutting down...")
+    logger.info("Shutting down gracefully...")
 
 # Create FastAPI app
 app = FastAPI(
@@ -71,25 +88,14 @@ app.add_middleware(
 app.include_router(voice_router)
 
 
-@app.get("/", tags=["Health"])
-async def health_check():
-    """
-    Health check endpoint.
-    Returns API status and version.
-    """
-    return {
-        "status": "healthy",
-        "service": "AI Voice Detection API",
-        "version": "1.0.0",
-        "languages": ["Tamil", "English", "Hindi", "Malayalam", "Telugu"]
-    }
+# Health check moved to /health endpoint to avoid conflict with Gradio UI redirect
 
 
 @app.get("/health", tags=["Health"])
 async def health_endpoint():
     """
-    Dedicated health check endpoint for automated evaluation.
-    Returns detailed status including model loading state.
+    Health check endpoint for automated evaluation.
+    Returns API status, version, and model loading state.
     """
     from app.ml_detector import get_ml_detector
     
@@ -101,9 +107,10 @@ async def health_endpoint():
     
     return {
         "status": "healthy",
+        "service": "AI Voice Detection API",
         "version": "1.0.0",
         "models_loaded": models_loaded,
-        "languages_supported": ["Tamil", "English", "Hindi", "Malayalam", "Telugu"],
+        "languages": ["Tamil", "English", "Hindi", "Malayalam", "Telugu"],
         "endpoints": {
             "single": "/api/voice-detection",
             "batch": "/api/voice-detection/batch",
@@ -124,10 +131,7 @@ class HackathonRequest(BaseModel):
     audioFormat: str = "mp3"
     audioBase64: str
 
-@app.get("/", include_in_schema=False)
-async def root_redirect():
-    """Redirect root to Gradio UI"""
-    return RedirectResponse(url="/gradio")
+# Gradio UI is now mounted at root path directly in gradio_app.py
 
 @app.post("/", tags=["Detection"])
 async def root_detect(request: HackathonRequest):
