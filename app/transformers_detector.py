@@ -14,7 +14,7 @@ class TransformersDetector:
     """
     
     MODEL_ID = "mo-thecreator/Deepfake-audio-detection"
-    MAX_DURATION_SECONDS = 30  # Limit audio to 30 seconds to avoid memory issues
+    MAX_DURATION_SECONDS = 15  # Limit audio to 15 seconds for faster inference on CPU
     
     def __init__(self):
         self.pipe = None

@@ -395,16 +395,22 @@ class VoiceDetector:
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
                     future = executor.submit(self.transformers_detector.detect, audio, sr)
                     try:
-                        tf_result = future.result(timeout=15)  # 15s timeout for transformers
+                        tf_result = future.result(timeout=10)  # 10s timeout for transformers
                     except concurrent.futures.TimeoutError:
-                        print(f"   ⏱️ Transformers detection timed out (15s limit)")
+                        print(f"   ⏱️ Transformers detection timed out (10s limit)")
                         tf_result = None
                 
                 if tf_result and tf_result.get('classification') != 'UNKNOWN':
                     tf_class = tf_result['classification']
                     tf_conf = tf_result['confidenceScore']
                     tf_ai_score = tf_conf if tf_class == "AI_GENERATED" else (1 - tf_conf)
-                    scores.append((tf_ai_score, 0.60, "transformers"))  # 60% weight
+                    
+                    # Dampen extreme scores: a perfect 1.0 likely indicates model bias
+                    if tf_ai_score >= 0.99:
+                        tf_ai_score = 0.75
+                        print(f"   ⚠️ Transformer returned {tf_conf:.3f}, dampened to 0.75 (likely bias)")
+                    
+                    scores.append((tf_ai_score, 0.25, "transformers"))  # 25% weight (reduced from 60% due to bias)
                     all_reasons.append(tf_result.get('explanation', 'Deep learning analysis'))
             except Exception as e:
                 print(f"Transformers detection failed: {e}")
